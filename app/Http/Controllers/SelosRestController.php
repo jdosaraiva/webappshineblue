@@ -7,7 +7,9 @@ use App\RetornoSelo;
 use App\Selo;
 use App\SeloValidado;
 use App\Usuario;
+use App\Utils\ConnectionUtil;
 use App\Utils\Constants;
+use App\Utils\SeloUtil;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +20,7 @@ class SelosRestController extends Controller
 
     public function selos(Request $request)
     {
-        Log::channel('daily')->debug('SelosRestController#selos - Inicio');
+        Log::channel('daily')->debug('SelosRestController#selos - INICIO');
 
         $input = $request->all();
         Log::channel('daily')->debug(sprintf('SelosRestController#selos - INPUT:[ %s ]', json_encode($input)));
@@ -37,7 +39,7 @@ class SelosRestController extends Controller
 
         $this->logOperacaoInicial($input, $cpf, $promotor, $vendedor, $validador, $qtdselos, $lojaEnvio);
 
-        $strConnection = $this->getConnection($cpf);
+        $strConnection = ConnectionUtil::getConnection($cpf);
 
         $lojas = DB::connection($strConnection)->table('loja_promotor')
             ->select('loja')
@@ -76,7 +78,7 @@ class SelosRestController extends Controller
                 } elseif (Constants::STATUS_CRIADO == $seloRetornado->status) {
                     Log::channel('daily')->debug(sprintf('SelosRestController#selos - O SELO %s COM STATUS CORRETO!', $seloRetornado->qrcode));
                     if ($LOJA_OK) {
-                        if (!$this->lojaIsValid($lojas, $seloRetornado)) {
+                        if (!$this->lojaIsValid($lojas, $seloRetornado->loja)) {
                             Log::channel('daily')->debug(sprintf('SelosRestController#selos - O SELO %s TEM LOJA INVÁLIDA!', $seloRetornado->qrcode));
                             $seloValidado->selo = $seloRetornado;
                             $seloValidado->mensagem = "LOJA INVALIDA";
@@ -86,7 +88,7 @@ class SelosRestController extends Controller
                             $retornoSelo->addValue($seloValidado);
                         } else {
                             Log::channel('daily')->debug(sprintf('SelosRestController#selos - O SELO %s COM TUDO OK', $seloRetornado->qrcode));
-                            $this->atualizaSelo($strConnection, $seloRetornado, $promotor, $vendedor, null, $lojaEnvio, Constants::STATUS_UTILIZADO);
+                            SeloUtil::atualizaSelo($strConnection, $seloRetornado, $promotor, $vendedor, null, $lojaEnvio, Constants::STATUS_UTILIZADO);
                         }
                     } else {
                         Log::channel('daily')->debug(sprintf('SelosRestController#selos - O SELO %s TEM LOJA INVÁLIDA!', $seloRetornado->qrcode));
@@ -110,7 +112,7 @@ class SelosRestController extends Controller
             }
         }
 
-        Log::channel('daily')->debug(sprintf('SelosRestController#selos - Encerrado - RESPONSE:[ %s ]', json_encode($retornoSelo)));
+        Log::channel('daily')->debug(sprintf('SelosRestController#selos - FINAL - RESPONSE:[ %s ]', json_encode($retornoSelo)));
 
         return response()->json($retornoSelo);
     }
@@ -120,69 +122,17 @@ class SelosRestController extends Controller
      * @param  Selo  $selo
      * @return bool
      */
-    public function lojaIsValid($lojas, $selo): bool
+    public function lojaIsValid($lojas, $loja): bool
     {
         $encontrou = false;
         foreach ($lojas as $lj) {
-            if ($lj->loja == $selo->loja) {
+            if ($lj->loja == $loja) {
                 $encontrou = true;
                 break;
             }
         }
 
         return $encontrou;
-    }
-
-
-    public function atualizaSelo($strConnection, $selo, $promotor, $vendedor, $validador, $lojaEnvio, $status)
-    {
-        $selo = DB::connection($strConnection)->table('selos')->find($selo->id);
-        $agora = (new \DateTime())->format('Y-m-d H:i:s');
-        $selo->promotor_cpf = $promotor;
-        $selo->promotor_datetime = $agora;
-        if (!empty($usuario)) {
-            $selo->usuario_cpf = $vendedor;
-            $selo->usuario_datetime = $agora;
-        }
-        if (!empty($validador)) {
-            $selo->validador_cpf = $vendedor;
-            $selo->validador_datetime = $agora;
-            $selo->conferido = Constants::CONFERIDO;
-        }
-        if (!empty($lojaEnvio)) {
-            $selo->loja_envio = $lojaEnvio;
-        }
-        if (!empty($status)) {
-            $selo->status = $status;
-        } else {
-            $selo->status = Constants::STATUS_UTILIZADO;
-        }
-
-        DB::connection($strConnection)->table('selos')
-            ->where('id', $selo->id)
-            ->update($this->toArray($selo));
-
-        return DB::connection($strConnection)->table('selos')->where('id', $selo->id)->first();
-    }
-
-    public function toArray($selo): array
-    {
-        return [
-            'id' => $selo->id,
-            'numero' => $selo->numero,
-            'qrcode' => $selo->qrcode,
-            'status' => $selo->status,
-            'conferido' => $selo->conferido,
-            'loja' => $selo->loja,
-            'promotor_cpf' => $selo->promotor_cpf,
-            'promotor_datetime' => $selo->promotor_datetime,
-            'usuario_cpf' => $selo->usuario_cpf,
-            'usuario_datetime' => $selo->usuario_datetime,
-            'validador_cpf' => $selo->validador_cpf,
-            'validador_datetime' => $selo->validador_datetime,
-            'pagamento' => $selo->pagamento,
-            'loja_envio' => $selo->loja_envio,
-        ];
     }
 
     public function logOperacaoInicial($input, $cpf, $promotor, $vendedor, $validador, $qtdselos, $lojaEnvio)
@@ -198,17 +148,6 @@ class SelosRestController extends Controller
         Log::channel('operacao')->info(sprintf('%s;%s;%s', $operacao, $cpf, json_encode($input)));
     }
 
-    public function getConnection($cpf): string
-    {
-        $usuario = Usuario::where('cpf', $cpf)->first();
-        if ($usuario == null) {
-            throw new Exception(sprintf('USUARIO [%s] NAO ENCONTRADO!', $cpf));
-        }
-        $conn = 'base_' . $usuario->base;
-
-        return $conn;
-    }
-
     public function getSitucaoLoja($lojas, $lojaEnvio): bool
     {
         $LOJA_OK = true;
@@ -218,14 +157,7 @@ class SelosRestController extends Controller
             Log::channel('daily')->debug(sprintf('SelosRestController#getSitucaoLoja - Loja: [ %s ]. Lojas: %s', $lojaEnvio, json_encode($lojas)));
             // TEM QUE TER ENVIADO UMA LOJA E ELA TEM QUE SER DAS LOJAS DO PROMOTOR
             if (isset($lojaEnvio) && !empty($lojaEnvio)) {
-                $encontrou = false;
-                foreach ($lojas as $lj) {
-                    if ($lojaEnvio == $lj->loja) {
-                        $encontrou = true;
-                        break;
-                    }
-                }
-                if (!$encontrou) {
+                if (!$this->lojaIsValid($lojas, $lojaEnvio)) {
                     Log::channel('daily')->debug(sprintf('SelosRestController#getSitucaoLoja - NÃO ENCONTRAMOS A Loja: [ %s ]. Lojas: %s', $lojaEnvio, json_encode($lojas)));
                     $LOJA_OK = false;
                 }
