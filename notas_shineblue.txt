@@ -1,0 +1,16 @@
+notas_shineblue
+
+
+Níveis:
+1 - Promotor
+2 - Vendedor
+3 - Validador
+4 - Administrador
+
+Se senha igual a senha padrão altera a senha
+Senha padrão: shineblue
+
+Login - OK
+Alterar Senha - OK
+Lojas - OK
+Selos

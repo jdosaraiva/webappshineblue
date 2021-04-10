@@ -17,12 +17,12 @@ class SeloUtil
         $agora = (new \DateTime())->format('Y-m-d H:i:s');
         $selo->promotor_cpf = $promotor;
         $selo->promotor_datetime = $agora;
-        if (!empty($usuario)) {
+        if (!empty($vendedor)) {
             $selo->usuario_cpf = $vendedor;
             $selo->usuario_datetime = $agora;
         }
         if (!empty($validador)) {
-            $selo->validador_cpf = $vendedor;
+            $selo->validador_cpf = $validador;
             $selo->validador_datetime = $agora;
             $selo->conferido = Constants::CONFERIDO;
         }

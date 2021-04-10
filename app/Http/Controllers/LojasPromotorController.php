@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Usuario;
+use App\Utils\ConnectionUtil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,11 +16,8 @@ class LojasPromotorController extends Controller
 
         $operacao = "BUSCANDO AS LOJAS PARA O PROMOTOR " . $cpf;
 
-        $usuario = Usuario::where('cpf', $cpf)->first();
-        if ($usuario == null) {
-            return response(['mensagem' => 'USUARIO NAO ENCONTRADO'], 404);
-        }
-        $conn = 'base_' . $usuario->base;
+        $conn = ConnectionUtil::getConnection($cpf);
+
         $lojas = DB::connection($conn)->table('loja_promotor')
             ->select('loja')
             ->where('cpf', $cpf)
