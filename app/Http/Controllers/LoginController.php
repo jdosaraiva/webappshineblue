@@ -48,11 +48,8 @@ class LoginController extends Controller
         Log::channel('daily')->debug(sprintf('LoginController#menu - SESSAO:[%s]', session()->get('usuario')));
 
         if ('' == session()->get('usuario')) {
-            Log::channel('daily')->debug('LoginController#menu - SEM SESSAO');
-            return redirect('/');
-        } else {
-            Log::channel('daily')->debug('LoginController#menu - COM SESSAO');
-        }
+            return redirect('/')->with('error','É necessário efetuar o login!');
+        } 
 
         return view('menu')->with(['usuario' => session()->get('usuario')]);
     }
